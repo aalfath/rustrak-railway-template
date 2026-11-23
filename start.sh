@@ -56,4 +56,31 @@ for d in /data "$INGEST_DIR" "$SOURCEMAP_STORAGE_PATH"; do
 done
 
 log "starting Rustrak (PostgreSQL build) on ${HOST} port ${PORT}"
-exec $bb setuidgid nonroot /app/rustrak
+# Rustrak exits 0 after a graceful stop, and Railway's ON_FAILURE policy does
+# not restart a service that exits 0. So run it as a child, pass a stop signal
+# on, and always exit non-zero, letting Railway bring the service back after
+# any stop it did not ask for itself.
+$bb setuidgid nonroot /app/rustrak &
+child=$!
+sig=""
+# Background jobs of a non-interactive shell ignore SIGINT, and Rustrak treats
+# SIGTERM and SIGINT alike, so both are passed on as SIGTERM.
+trap 'sig=TERM; $bb kill -TERM "$child" 2>/dev/null || true' TERM
+trap 'sig=INT; $bb kill -TERM "$child" 2>/dev/null || true' INT
+while :; do
+  code=0
+  wait "$child" || code=$?
+  $bb kill -0 "$child" 2>/dev/null || break
+done
+if [ -n "$sig" ]; then
+  log "stopped by SIG${sig} (Rustrak exit code ${code})"
+  if [ "$code" -eq 0 ]; then
+    if [ "$sig" = TERM ]; then code=143; else code=130; fi
+  fi
+elif [ "$code" -eq 0 ]; then
+  log "Rustrak exited without being asked to stop; exiting 1 so Railway restarts it"
+  code=1
+else
+  log "Rustrak exited with code ${code}"
+fi
+exit "$code"
