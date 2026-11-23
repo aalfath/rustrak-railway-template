@@ -8,12 +8,12 @@ FROM rustrak/rustrak-server:v0.31.0-postgres@sha256:d6983b663d89e1514cd243c0db78
 # The upstream image is distroless (no shell). A static busybox runs the small
 # start script: it waits for PostgreSQL, prepares the Railway volume and then
 # runs Rustrak as the image's unprivileged user (65532).
+USER root
 COPY --from=busybox /bin/busybox /busybox/busybox
 COPY start.sh /busybox/start.sh
 # A /bin/sh so `railway ssh` can open a shell in the container for debugging.
-RUN ["/busybox/busybox", "ln", "-sf", "/busybox/busybox", "/bin/sh"]
+RUN ["/busybox/busybox", "sh", "-c", "/busybox/busybox mkdir -p /bin && /busybox/busybox ln -sf /busybox/busybox /bin/sh"]
 
-USER root
 WORKDIR /app
 EXPOSE 8080
 ENTRYPOINT ["/busybox/busybox", "sh", "/busybox/start.sh"]
