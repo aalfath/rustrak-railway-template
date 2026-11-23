@@ -10,6 +10,8 @@ FROM rustrak/rustrak-server:v0.31.0-postgres@sha256:d6983b663d89e1514cd243c0db78
 # runs Rustrak as the image's unprivileged user (65532).
 COPY --from=busybox /bin/busybox /busybox/busybox
 COPY start.sh /busybox/start.sh
+# A /bin/sh so `railway ssh` can open a shell in the container for debugging.
+RUN ["/busybox/busybox", "ln", "-sf", "/busybox/busybox", "/bin/sh"]
 
 USER root
 WORKDIR /app
